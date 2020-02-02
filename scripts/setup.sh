@@ -2,9 +2,10 @@
 
 USER=${USER:-ictsc}
 BASEIMAGE="base"
-PASSWORD="$(echo -n veth-is-an-virtual-ethernet-device | md5sum | cut -c1-8)"
 
 set -x
+
+sudo useradd -s /bin/bash -m -G sudo -p '$6$feoWBZt29xWXIJhO$oHQCbGSFGnUgzrVw9gaXk0lbAuF7bHAfI8spR.a8H3IXF./6rq3quIoezF7Fs9EWMkna4qTGPN08u5O0ss6V20' user
 
 sudo apt update
 sudo apt install -y \
@@ -98,3 +99,7 @@ sudo machinectl enable m2
 
 sudo systemctl daemon-reload
 
+cd /opt/forwarder
+make build
+make stop
+make start
