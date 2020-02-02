@@ -7,6 +7,7 @@ sudo useradd -s /bin/bash -m -G sudo -p '$6$feoWBZt29xWXIJhO$oHQCbGSFGnUgzrVw9ga
 sudo apt update
 sudo apt install -y \
 	build-essential \
+	debootstrap \
 	clang \
 	curl \
 	linux-buildinfo-5.3.0-23-generic \
