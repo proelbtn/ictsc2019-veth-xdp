@@ -5,7 +5,7 @@ do
 	sleep 1
 done
 
-sleep 3
+sleep 1
 
 ip addr flush ve-m1
 ip addr add 10.123.1.254/24 dev ve-m1
@@ -18,7 +18,7 @@ do
 	sleep 1
 done
 
-sleep 3
+sleep 1
 
 ip addr flush ve-m2
 ip addr add 10.123.2.254/24 dev ve-m2

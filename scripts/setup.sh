@@ -1,7 +1,7 @@
 #!/bin/bash
 
 USER=${USER:-ictsc}
-BASEIMAGE="ubuntu-bionic-amd64"
+BASEIMAGE="base"
 PASSWORD="$(echo -n veth-is-an-virtual-ethernet-device | md5sum | cut -c1-8)"
 
 set -x
@@ -21,6 +21,16 @@ sudo apt install -y \
 	systemd-container \
 	tcpdump \
 	wget
+
+if ! (ls -lh /var/lib/machines.raw | grep -q 4.0G); then
+	sudo umount /var/lib/machines
+	sudo losetup -d /dev/loop0
+	sudo rm -rf /var/lib/machines.raw
+	sudo dd if=/dev/zero of=/var/lib/machines.raw bs=1M count=4096
+	sudo losetup /dev/loop0 /var/lib/machines.raw
+	sudo mkfs.btrfs /dev/loop0
+	sudo mount /dev/loop0 /var/lib/machines
+fi
 
 
 if ! (which docker >/dev/null 2>/dev/null); then
@@ -42,20 +52,49 @@ done
 
 if ! (machinectl list-images | grep -q ${BASEIMAGE}); then
 	sudo btrfs subvolume create /var/lib/machines/${BASEIMAGE}
-	sudo debootstrap --arch=amd64 bionic /var/lib/machines/${BASEIMAGE}
+	sudo debootstrap bionic /var/lib/machines/${BASEIMAGE} http://archive.ubuntu.com/ubuntu/
+	sudo machinectl read-only base
 fi
 
-if ! (machinectl list-images | grep -q m1); then
-	sudo machinectl clone ${BASEIMAGE} m1
-	sudo systemd-nspawn -D /var/lib/machines/m1 useradd -m admin
-	sudo systemd-nspawn -D /var/lib/machines/m1 bash -c "yes ${PASSWORD} | passwd admin"
-fi
+machinectl list-images | grep -q m1 || sudo machinectl clone ${BASEIMAGE} m1
+machinectl list-images | grep -q m2 || sudo machinectl clone ${BASEIMAGE} m2
 
-if ! (machinectl list-images | grep -q m2); then
-	sudo machinectl clone ${BASEIMAGE} m2
-	sudo systemd-nspawn -D /var/lib/machines/m2 useradd -m admin
-	sudo systemd-nspawn -D /var/lib/machines/m2 bash -c "yes ${PASSWORD} | passwd admin"
-fi
+sudo systemd-nspawn -D /var/lib/machines/m1 bash -c "rm -rf /etc/resolv.conf && echo 'nameserver 8.8.8.8' > /etc/resolv.conf"
+sudo systemd-nspawn -D /var/lib/machines/m1 bash -c "apt update && apt install -y nginx openssh-server"
+sudo systemd-nspawn -D /var/lib/machines/m1 bash -c "cat <<EOF | tee /etc/netplan/00_host0.yaml && netplan generate
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    host0:
+      addresses:
+        - 10.123.1.1/24
+      gateway4: 10.123.1.254
+      nameservers:
+        addresses:
+          - 8.8.8.8
+          - 8.8.4.4
+EOF"
+
+sudo systemd-nspawn -D /var/lib/machines/m2 bash -c "rm -rf /etc/resolv.conf && echo 'nameserver 8.8.8.8' > /etc/resolv.conf"
+sudo systemd-nspawn -D /var/lib/machines/m2 bash -c "apt update && apt install -y apache2 openssh-server"
+sudo systemd-nspawn -D /var/lib/machines/m2 bash -c "cat <<EOF | tee /etc/netplan/00_host0.yaml && netplan generate
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    host0:
+      addresses:
+        - 10.123.2.1/24
+      gateway4: 10.123.2.254
+      nameservers:
+        addresses:
+          - 8.8.8.8
+          - 8.8.4.4
+EOF"
+
+sudo machinectl enable m1
+sudo machinectl enable m2
 
 sudo systemctl daemon-reload
 
